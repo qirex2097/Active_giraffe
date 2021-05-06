@@ -183,3 +183,163 @@ function touchEnded(event) {
 
 //----------------------------------------
 
+//let test_blocks = [17,28,38,39,40,49,51];
+//let test_value = 13122;
+let test_blocks = [70,81,92,93];
+let test_value = 162;
+
+function prime_factorization(value=162) {
+    let result = [];
+    for (const a of [7, 5, 3, 2]) {
+        while (value % a === 0) {
+            value /= a;
+            result.push(a);
+        }
+    }
+    return result;
+}
+
+
+/*
+  9 = 3 * 3
+  8 = 2 * 2 * 2
+  8 = 4 * 2
+  6 = 3 * 2
+  4 = 2 * 2
+*/
+
+function expressed_by_multiplication(factor, num) {
+    /*
+      405(5) = 3 * 3 * 3 * 3 * 5
+      9 * 9 * 5 * 1 * 1
+      9 * 5 * 3 * 3 * 1
+      5 * 3 * 3 * 3 * 3
+    */
+
+    let result = [];
+    factor.sort((a, b) => b - a);
+    if (factor.length <= num) {
+        let tmp_factor = factor.slice();
+        while (tmp_factor.length < num) {
+            tmp_factor.push(1);
+        }
+        result.push(tmp_factor);
+    }
+    if (factor.filter(e => e === 3).length >= 2) {
+        let tmp_factor = factor.slice();
+        tmp_factor.splice(tmp_factor.indexOf(3),1);
+        tmp_factor.splice(tmp_factor.indexOf(3),1);
+        tmp_factor.unshift(9);
+        result = result.concat(expressed_by_multiplication(tmp_factor, num));
+    }
+    if (factor.filter(e => e === 2).length >= 3) {
+        let tmp_factor = factor.slice();
+        tmp_factor.splice(tmp_factor.indexOf(2),1);
+        tmp_factor.splice(tmp_factor.indexOf(2),1);
+        tmp_factor.splice(tmp_factor.indexOf(2),1);
+        tmp_factor.unshift(8);
+        result = result.concat(expressed_by_multiplication(tmp_factor, num));
+    }
+    if (factor.indexOf(4) != -1 && factor.indexOf(2) != -1) {
+        let tmp_factor = factor.slice();
+        tmp_factor.splice(tmp_factor.indexOf(4),1);
+        tmp_factor.splice(tmp_factor.indexOf(2),1);
+        tmp_factor.unshift(8);
+        result = result.concat(expressed_by_multiplication(tmp_factor, num));
+    }
+    if (factor.indexOf(3) != -1 && factor.indexOf(2) != -1) {
+        let tmp_factor = factor.slice();
+        tmp_factor.splice(tmp_factor.indexOf(3),1);
+        tmp_factor.splice(tmp_factor.indexOf(2),1);
+        tmp_factor.unshift(6);
+        result = result.concat(expressed_by_multiplication(tmp_factor, num));
+    }
+    if (factor.filter(e => e === 2).length >= 2) {
+        let tmp_factor = factor.slice();
+        tmp_factor.splice(tmp_factor.indexOf(2),1);
+        tmp_factor.splice(tmp_factor.indexOf(2),1);
+        tmp_factor.unshift(4);
+        result = result.concat(expressed_by_multiplication(tmp_factor, num));
+    }
+    return uniq_array(result);
+}
+
+function uniq_array(array) {
+    return array.filter((spin, index, array) => (
+        index === array.findIndex((another) => (
+            spin.toString() === another.toString()
+        ))
+    ))
+}
+
+/*
+
+　┌┐　13122
+　││
+┌┘└┐
+│┌┐│
+└┘└┘
+
+13122 = 9 * 9 * 9 * 9 * 2;
+
+9 * 9 * 9 * 9 * 2 * 1 * 1; <-- x
+9 * 9 * 9 * 3 * 3 * 2 * 1;
+9 * 9 * 3 * 3 * 3 * 3 * 2; <-- x
+
+
+　　┌┐405 (47,56,57,58,67)
+┌─┘│
+│┌─┘
+└┘
+
+405 = 9 * 9 * 5
+
+9 * 9 * 5 * 1 * 1
+9 * 5 * 3 * 3 * 1
+5 * 3 * 3 * 3 * 3 <-- x
+
+
+　　┌┐16464 (50,59,60,61,71)
+┌─┘│
+└┐┌┘
+　└┘
+16464 = 8 * 7 * 7 * 7 * 6
+
+8 * 7 * 7 * 7 * 6
+
+
+┌┐　162 (70,81,92,93)
+││
+││
+│└┐
+└─┘
+
+162 = 9 * 9 * 2;
+
+9 * 9 * 2 * 1
+9 * 3 * 3 * 2
+
+9 * 6 * 3 * 1;
+
+
+9 = 3 * 3
+8 = 2 * 2 * 2
+6 = 3 * 2
+4 = 2 * 2
+
+162 = 3 * 3 * 3 * 3 * 2 (4)
+
+3 * 3 * 3 * 3 * 2 <--- x
+9 * 3 * 3 * 2
+9 * 9 * 2 * 1
+9 * 6 * 3 * 1
+
+
+405 = 9 * 9 * 5 (5)
+9 * 9 (4)
+9 * 9 * 1 * 1
+9 * 3 * 3 * 1
+3 * 3 * 3 * 3
+
+
+ */
