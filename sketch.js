@@ -51,16 +51,65 @@ let xyn = new SQBoard(YOKO, TATE, SIZE);
 let current_block = [];
 let block_list = [];
 let button;
+let draw_func = null;
+let clicked_func = null;
+let touch_started = null;
+let touch_moved = null;
+let touch_ended = null;
+let button_func = null;
 
 //----------------------------------------
 
 function setup() {
     createCanvas(640, 360);
+    [draw_func, clicked_func, touch_started, touch_moved, touch_ended, button_func] = initialize_stage00();
     button = createButton('click me');
     button.position(xyn.getRightEdge(), 0);
+    button.mousePressed(buttonMousePressed);
 }
 
 function draw() {
+    if (draw_func) {
+        draw_func();
+    }
+}
+
+function touchStarted(event) {
+    if (touch_started) {
+        touch_started(event);
+    }
+}
+
+function touchMoved(event) {
+    if (touch_moved) {
+        touch_moved(event);
+    }
+}
+
+function touchEnded(event) {
+    if (touch_ended) {
+        touch_ended(event);
+    }
+}
+
+function mouseClicked() {
+    if (clicked_func) {
+        clicked_func();
+    }
+}
+
+function buttonMousePressed() {
+    if (button_func) {
+        button_func();
+    }
+}
+//----------------------------------------
+
+function initialize_stage00() {
+    return [draw_stage00, null, ts_stage00, tm_stage00, te_stage00, button_stage00];
+}
+
+function draw_stage00() {
     //const color_list = ['red', 'green', 'blue', 'yellow', 'purple', 'cyan', 'deeppink', 'lawngreen', 'deepskyblue']; 
     const color_list = ['black'];
 
@@ -109,9 +158,10 @@ function draw() {
                 line(canvas_x, canvas_y + size, canvas_x, canvas_y);
             }
             if (num === Math.min.apply(null, block)) {
+                let value = block.value || 0;
                 fill(255);
                 textAlign(LEFT, TOP);
-                text(block.value, canvas_x, canvas_y);
+                text(value, canvas_x, canvas_y);
             }
             pop();
         }
@@ -130,7 +180,8 @@ function draw() {
     }
 }
 
-function touchMoved(event) {
+
+function tm_stage00(event) {
     const current_num = xyn.refresh(mouseX, mouseY);
     const prev_num = xyn.prev;
     if (xyn.isValidPos() && prev_num != current_num) {
@@ -142,7 +193,7 @@ function touchMoved(event) {
     }
 }
 
-function touchStarted(event) {
+function ts_stage00(event) {
     const touched_num = xyn.refresh(mouseX, mouseY);
     if (!xyn.isValidNum(touched_num)) {
         return;
@@ -162,7 +213,7 @@ function touchStarted(event) {
     }
 }
 
-function touchEnded(event) {
+function te_stage00(event) {
     xyn.refresh(mouseX, mouseY);
     
     if (current_block.length > 0) {
@@ -181,20 +232,115 @@ function touchEnded(event) {
     block_list = block_list.filter(e => e.length > 0);
 }
 
-//----------------------------------------
+function button_stage00() {
+    [draw_func, clicked_func, touch_started, touch_moved, touch_ended, button_func] = initialize_stage01();
+}
 
-//let test_blocks = [17,28,38,39,40,49,51];
-//let test_value = 13122;
-let test_blocks = [70,81,92,93];
-let test_value = 162;
+//----------------------------------------
+let num_pattern = [];
+
+function initialize_stage01() {
+    return [draw_stage01, clicked_stage01, null, null, null, button_stage01];
+}
+
+function draw_stage01() {
+    background(200);
+
+    xyn.draw(function(canvas_x, canvas_y, size, num) {
+        let block_list_no = NaN;
+
+        stroke(1);
+        noFill();
+        for (let i = 0; i < block_list.length; i++) {
+            const block = block_list[i];
+            if (block.includes(num)) {
+                block_list_no = i;
+                noStroke();
+                if (current_block.includes(num)) {
+                    fill('red');
+                } else {
+                    fill('black');
+                }
+                break;
+            }
+        }
+        rect(canvas_x, canvas_y, size);
+
+        if (!Number.isNaN(block_list_no)) {
+            const block = block_list[block_list_no];
+            push();
+            stroke(200);
+            strokeWeight(1);
+            if (!block.includes(num - xyn.yoko)) {
+                line(canvas_x, canvas_y, canvas_x + size, canvas_y);
+            }
+            if (!block.includes(num + 1)) {
+                line(canvas_x + size, canvas_y, canvas_x + size, canvas_y + size);
+            }
+            if (!block.includes(num + xyn.yoko)) {
+                line(canvas_x + size, canvas_y + size, canvas_x, canvas_y + size);
+            }
+            if (!block.includes(num - 1)) {
+                line(canvas_x, canvas_y + size, canvas_x, canvas_y);
+            }
+
+            if (num === Math.min.apply(null, block)) {
+                fill(255);
+                textAlign(LEFT, TOP);
+                text(block.value, canvas_x, canvas_y);
+            }
+            pop();
+        }
+    });
+
+    for (let i = 0; i < num_pattern.length; i++) {
+        fill(0);
+        textAlign(LEFT, TOP);
+        text(num_pattern[i], SIZE * YOKO, 30 + i * 11);
+    }
+}
+
+function clicked_stage01() {
+    const touched_num = xyn.refresh(mouseX, mouseY);
+    current_block = [];
+    if (!xyn.isValidNum(touched_num)) {
+        return;
+    }
+    for (let i = 0; i < block_list.length; i++) {
+        const block = block_list[i];
+        const idx = block.indexOf(touched_num);
+        if (idx != -1) {
+            current_block = block;
+            let pf = prime_factorization(block.value);
+            num_pattern = expressed_by_multiplication(pf, block.length);
+            console.log(num_pattern);
+        }
+    }
+    return;
+}
+
+function button_stage01() {
+    current_block = [];
+    [draw_func, clicked_func, touch_started, touch_moved, touch_ended, button_func] = initialize_stage00();
+}
+//----------------------------------------
 
 function prime_factorization(value=162) {
     let result = [];
+    if (value === 0) {
+        return result;
+    }
+    if (value === 1) {
+        return [1];
+    }
     for (const a of [7, 5, 3, 2]) {
         while (value % a === 0) {
             value /= a;
             result.push(a);
         }
+    }
+    if (value != 1) {
+        result.push(value);
     }
     return result;
 }
@@ -209,13 +355,6 @@ function prime_factorization(value=162) {
 */
 
 function expressed_by_multiplication(factor, num) {
-    /*
-      405(5) = 3 * 3 * 3 * 3 * 5
-      9 * 9 * 5 * 1 * 1
-      9 * 5 * 3 * 3 * 1
-      5 * 3 * 3 * 3 * 3
-    */
-
     let result = [];
     factor.sort((a, b) => b - a);
     if (factor.length <= num) {
