@@ -44,6 +44,8 @@ class Block extends Array {
     constructor (...items) {
         super(...items);
         this.value = NaN;
+        this.yoko = NaN;
+        this.tate = NaN;
     }
 }
 
@@ -219,7 +221,20 @@ function te_stage00(event) {
     if (current_block.length > 0) {
         const value = current_block.value || 0;
         let result = prompt('入力値は？', value);
-        current_block.value = result;
+        current_block.value = Number(result) || 0;
+        let x0, y0, x1, y1;
+        [x0, y0] = xyn.getXY(current_block[0]);
+        [x1, y1] = [x0, y0];
+        for (const num of current_block) {
+            let pos = xyn.getXY(num);
+            x0 = min(pos[0], x0);
+            y0 = min(pos[1], y0);
+            x1 = max(pos[0], x1);
+            y1 = max(pos[1], y1);
+        }
+        current_block.yoko = x1 - x0 + 1;
+        current_block.tate = y1 - y0 + 1;
+        console.log(current_block.yoko, current_block.tate);
     }
 
     for (let i = 0; i < block_list.length; i++) {
@@ -237,6 +252,14 @@ function button_stage00() {
 }
 
 //----------------------------------------
+class Numbers extends Array {
+    constructor (...items) {
+        super(...items);
+        this.valid = true;
+    }
+    isValid() { return this.valid; }
+}
+
 let num_pattern = [];
 
 function initialize_stage01() {
@@ -293,16 +316,23 @@ function draw_stage01() {
         }
     });
 
-    for (let i = 0; i < num_pattern.length; i++) {
-        fill(0);
-        textAlign(LEFT, TOP);
-        text(num_pattern[i], SIZE * YOKO, 30 + i * 11);
+    if (current_block.length > 0) {
+        for (let i = 0; i < num_pattern.length; i++) {
+            if (num_pattern[i].isValid()) {
+                stroke(0);
+            } else {
+                stroke(150);
+            }
+            textAlign(LEFT, TOP);
+            text(num_pattern[i], SIZE * YOKO, 30 + i * 11);
+        }
     }
 }
 
 function clicked_stage01() {
     const touched_num = xyn.refresh(mouseX, mouseY);
     current_block = [];
+    num_pattern = [];
     if (!xyn.isValidNum(touched_num)) {
         return;
     }
@@ -312,8 +342,20 @@ function clicked_stage01() {
         if (idx != -1) {
             current_block = block;
             let pf = prime_factorization(block.value);
-            num_pattern = expressed_by_multiplication(pf, block.length);
-            console.log(num_pattern);
+            for (const nums of expressed_by_multiplication(pf, block.length)) {
+                let count = {};
+                for (const e of nums) {
+                    count[e] = (count[e] || 0) + 1;
+                }
+                let numbers = new Numbers(nums);
+                if (max(...Object.keys(count)) <= 9 &&
+                    max(...Object.values(count)) <= min(current_block.yoko, current_block.tate)) {
+                    numbers.valid = true;
+                } else {
+                    numbers.valid = false;
+                }
+                num_pattern.push(numbers);
+            }
         }
     }
     return;
@@ -325,7 +367,7 @@ function button_stage01() {
 }
 //----------------------------------------
 
-function prime_factorization(value=162) {
+function prime_factorization(value) {
     let result = [];
     if (value === 0) {
         return result;
