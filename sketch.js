@@ -13,6 +13,7 @@ class SQBoard {
         this.current = NaN;
         this.x = NaN;
         this.y = NaN;
+        this.values = Array(this.yoko * this.tate).fill(0);
     }
     refresh(x, y) {
         this.prev = this.current;
@@ -35,6 +36,17 @@ class SQBoard {
     getXY = (num) => { return [num % this.yoko, Math.floor(num / this.yoko)] }
     getRightEdge = () => { return (this.yoko - 2) * this.size; }
 
+    setValue(num, value) { this.values[num] = value; }
+    getValue(num) { return this.values[num]; }
+    getValuesX = (x) => { 
+        return this.values.filter((e, i) => x === (i % this.yoko)
+                                  && 1 <= Math.floor(i / this.yoko) 
+                                  && Math.floor(i / this.yoko) <= this.tate - 2); }
+    getValuesY = (y) => { 
+        return this.values.filter((e, i) => y === Math.floor(i / this.yoko)
+                                  && 1 <= Math.floor(i % this.yoko) 
+                                  && Math.floor(i % this.yoko) <= this.yoko - 2); }
+    
     isValidNum = (num) => { 
         return !(num <= this.yoko - 1 || num % this.yoko === 0 || num % this.yoko === 10 || num >= this.yoko * (this.tate - 1)); 
     }
@@ -46,6 +58,11 @@ class Block extends Array {
         this.value = NaN;
         this.yoko = NaN;
         this.tate = NaN;
+        this.nump = [];
+        this.nump_no = NaN;
+    }
+    getNump() {
+        return this.nump[this.nump_no];
     }
 
     static get [Symbol.species]() {
@@ -256,11 +273,27 @@ function button_stage00() {
 }
 
 //----------------------------------------
+
 class Numbers extends Array {
     constructor (...items) {
         super(...items);
         this.valid = true;
-        this.block = null;
+        this.pattern = [];
+        this.pattern_no = NaN;
+    }
+
+    getPattern() {
+        if (this.pattern_no >= 0) {
+            return this.pattern[this.pattern_no];
+        } else {
+            if (this.pattern.length > 0) {
+                var dummy_pattern = {};
+                for (const key of Object.keys(this.pattern[0])) {
+                    dummy_pattern[key] = 0;
+                }
+                return dummy_pattern;
+            }
+        }
     }
 
     static get [Symbol.species]() {
@@ -269,7 +302,7 @@ class Numbers extends Array {
 
 }
 
-let num_pattern = [];
+let selected_block = null;
 let sel_button = null;
 let sel_button2 = null;
 
@@ -290,7 +323,7 @@ function draw_stage01() {
             if (block.includes(num)) {
                 block_list_no = i;
                 noStroke();
-                if (current_block.includes(num)) {
+                if (selected_block && selected_block.includes(num)) {
                     fill('red');
                 } else {
                     fill('black');
@@ -300,7 +333,7 @@ function draw_stage01() {
         }
         rect(canvas_x, canvas_y, size);
 
-        if (!Number.isNaN(block_list_no)) {
+        if (block_list_no >= 0) {
             const block = block_list[block_list_no];
             push();
             stroke(200);
@@ -323,26 +356,45 @@ function draw_stage01() {
                 textAlign(LEFT, TOP);
                 text(block.value, canvas_x, canvas_y);
             }
+            if (block.nump_no >= 0) {
+                const nump = block.getNump();
+                if (nump.pattern_no >= 0) {
+                    fill(255);
+                    textAlign(CENTER, CENTER);
+                    text(nump.getPattern()[num], canvas_x + size / 2, canvas_y + size / 2);
+                }
+            }
             pop();
         }
     });
 
-    if (current_block) {
-        //
-    }
-
     {
         const origin_x = 360 + 5;
         const origin_y = 360 - 270 - 5;
-        for (let y = 0; y < 9; y++) {
-            for (let x = 0; x < 9; x++) {
-                const num = xyn.getNum(x + 1, y + 1);
+        for (let y = 1; y <= 9; y++) {
+            for (let x = 1; x <= 9; x++) {
+                const num = xyn.getNum(x, y);
                 noFill();
                 stroke(255);
-                if (current_block && current_block.includes(num)) {
+                if (selected_block && selected_block.includes(num)) {
                     fill('red');
                 }
-                rect(origin_x + x * 30, origin_y + y * 30, 30);
+                rect(origin_x + (x - 1) * 30, origin_y + (y - 1) * 30, 30);
+                const value = xyn.getValue(num);
+                const values_x = xyn.getValuesX(x);
+                const values_y = xyn.getValuesY(y);
+                if (1 <= value && value <= 9) {
+                    if (values_x.filter(e => e === value).length === 1 &&
+                        values_y.filter(e => e === value).length === 1) {
+                        fill(255);
+                        stroke(255);
+                    } else {
+                        fill(128);
+                        stroke(128);
+                    }
+                    textAlign(CENTER, CENTER);
+                    text(value, origin_x + (x - 1) * 30 + 15, origin_y + (y - 1) * 30 + 15);
+                }
             }
         }
     }
@@ -366,31 +418,16 @@ function clicked_stage01() {
             continue;
         }
 
-        if (block === current_block) {
-            current_block = [];
-            num_pattern = [];
-            sel_button.remove();
-            sel_button = null;
+        if (block === selected_block) {
+            clear_stage01();
         } else {
-            current_block = block;
+            selected_block = block;
 
-            num_pattern = [];
-            let pf = prime_factorization(block.value);
-            for (const nums of expressed_by_multiplication(pf, block.length)) {
-                let count = {};
-                let numbers = new Numbers();
-                for (const e of nums) {
-                    count[e] = (count[e] || 0) + 1;
-                    numbers.push(e);
-                    numbers.block = current_block;
-                }
-                if (max(...Object.keys(count)) <= 9 &&
-                    max(...Object.values(count)) <= min(current_block.yoko, current_block.tate)) {
-                    numbers.valid = true;
-                } else {
-                    numbers.valid = false;
-                }
-                num_pattern.push(numbers);
+            if (selected_block.nump.length === 0) {
+                build_nump_multiplication(selected_block);
+                build_nump_addition(selected_block);
+                build_nump_subtraction(selected_block);
+                build_nump_divition(selected_block);
             }
 
             if (sel_button) {
@@ -398,95 +435,150 @@ function clicked_stage01() {
                 sel_button = null;
             }
             sel_button = createSelect();
-            sel_button.changed(select_changed);
             sel_button.position(SIZE * YOKO, 24);
             sel_button.option('-', -1);
-            num_pattern.forEach((numbers, index) => {
+            selected_block.nump.forEach((numbers, index) => {
                 if (numbers.valid) {
                     sel_button.option(numbers.slice().toString(), index);
                 }
             });
+            if (selected_block.nump_no >= 0) {
+                sel_button.selected(selected_block.nump_no);
+                select_changed();
+            }
+            sel_button.changed(select_changed);
         }
         return;
     }
     return;
 }
 
-/*
- * [], nums = 6 * 3 * 3, blocks = [19,20,30]
- */
-function rec01(field, nums, blocks) {
-    let tmp_field = field.slice();
-    const pos_n = xyn.getXY(blocks[tmp_field.length - 1]);
-    const n = tmp_field.pop();
-    for (let i = 0; i < tmp_field.length; i++) {
-        if (tmp_field[i] === n) {
-            const pos_e = xyn.getXY(blocks[i]);
-            if (pos_n[0] === pos_e[0] || pos_n[1] === pos_e[1]) {
-                return [];
-            }
-        }
+
+function clear_stage01() {
+    if (selected_block) {
+        selected_block = [];
     }
-
-    if (nums.length === 0) {
-        return [field.slice()];
+    if (sel_button2) {
+        sel_button2.remove();
+        sel_button2 = null;
     }
-
-    let result = [];
-    append_field : for (const n of new Set(nums)) {
-        field.push(n);
-        nums.splice(nums.indexOf(n), 1);
-        result = [...result, ...rec01(field, nums, blocks)];
-        nums.push(field.pop());
-
+    if (sel_button) {
+        sel_button.remove();
+        sel_button = null;
     }
-
-    return result;
 }
+
 
 function select_changed() {
     if (sel_button2) {
-        sel_button2.remove;
+        sel_button2.remove();
         sel_button2 = null;
+
+        let nump = selected_block.getNump();
+        const num = nump.getPattern();
+        for (const key in num) {
+            xyn.setValue(key, 0);
+        }
     }
     const idx = sel_button.value();
+    selected_block.nump_no = idx;
     if (idx >= 0) {
-        const result = rec01([], num_pattern[idx].filter(e => e > 0), current_block.slice());
-        if (result.length > 0) {
+        let nump = selected_block.getNump();
+        if (nump.pattern.length === 0) {
+            nump.pattern = build_nump_pattern([], selected_block.nump[idx].slice(), selected_block.slice());
+        }
+        if (nump.pattern.length > 0) {
             sel_button2 = createSelect();
-            sel_button2.changed(select_changed_2);
             sel_button2.position(SIZE * YOKO, 48);
             sel_button2.option('-', -1);
-            result.forEach((numbers, index) => {
-                sel_button2.option(numbers.toString(), index);
+            nump.pattern.forEach((numbers, index) => {
+                let values = '';
+                for (const key of Object.keys(numbers)) {
+                    values += numbers[key] + ',';
+                }
+                sel_button2.option(values, index);
             });
+            if (nump.pattern_no >= 0) {
+                sel_button2.selected(nump.pattern_no);
+                select_changed_2();
+            }
+            sel_button2.changed(select_changed_2);
         }
     }
 }
 
 function select_changed_2() {
     const idx = sel_button2.value();
-    if (idx >= 0) {
-        const num = num_pattern[idx];
-        console.log(num);
+    let nump = selected_block.getNump();
+    nump.pattern_no = idx;
+
+    const num = nump.getPattern();
+    for (const key in num) {
+        xyn.setValue(key, num[key]);
     }
     return;
 }
 
 function button_stage01() {
-    current_block = [];
-    num_pattern = [];
-    if (sel_button) {
-        sel_button.remove();
-        sel_button = null;
-    }
-    if (sel_button2) {
-        sel_button2.remove();
-        sel_button = null;
-    }
+    clear_stage01();
     [draw_func, clicked_func, touch_started, touch_moved, touch_ended, button_func] = initialize_stage00();
 }
 //----------------------------------------
+function build_nump_addition(block) {
+    for (const nums of expressed_by_addition(block.value, block.length, [])) {
+        let count = {};
+        let numbers = new Numbers();
+        for (const e of nums) {
+            count[e] = (count[e] || 0) + 1;
+            numbers.push(e);
+        }
+        if (max(...Object.keys(count)) <= 9 &&
+            max(...Object.values(count)) <= min(block.yoko, block.tate)) {
+            numbers.valid = true;
+        } else {
+            numbers.valid = false;
+        }
+        block.nump.push(numbers);
+    }
+}
+
+function expressed_by_addition(value, num, field) {
+    let result = [];
+    if (num === 2) {
+        for (let a = 1; a <= 9; a++) {
+            const b = value - a;
+            if (1 <= b && b <= 9) {
+                result.push(field.slice().concat([a, b]));
+            }
+        }
+    } else if (value >= num && value < 9 * num) {
+        for (let n = 1; n <= 9 && value - n >= 2; n++) {
+            result = result.concat(expressed_by_addition(value - n, num - 1, [...field, n]));
+        }
+    }
+
+    return uniq_array(result);
+}
+
+function build_nump_multiplication(block) {
+    let pf = prime_factorization(block.value);
+    for (const nums of expressed_by_multiplication(pf, block.length)) {
+        let count = {};
+        let numbers = new Numbers();
+        for (const e of nums) {
+            count[e] = (count[e] || 0) + 1;
+            numbers.push(e);
+        }
+        if (max(...Object.keys(count)) <= 9 &&
+            max(...Object.values(count)) <= min(block.yoko, block.tate)) {
+            numbers.valid = true;
+        } else {
+            numbers.valid = false;
+        }
+        block.nump.push(numbers);
+    }
+//    block.nump_no = NaN;
+}
 
 function prime_factorization(value) {
     if (value === 0) {
@@ -568,6 +660,9 @@ function expressed_by_multiplication(factor, num) {
 }
 
 function uniq_array(array) {
+    for (let e of array) {
+        e.sort((a, b) => b - a);
+    }
     return array.filter((spin, index, array) => (
         index === array.findIndex((another) => (
             spin.toString() === another.toString()
@@ -575,74 +670,107 @@ function uniq_array(array) {
     ))
 }
 
+//----------------------------------------
+
+function build_nump_subtraction(block) {
+    if (block.length != 2 || block.value >= 9) {
+        return;
+    }
+    for (const nums of expressed_by_subtraction(block.value)) {
+        let count = {};
+        let numbers = new Numbers();
+        for (const e of nums) {
+            count[e] = (count[e] || 0) + 1;
+            numbers.push(e);
+        }
+        if (max(...Object.keys(count)) <= 9 && max(...Object.values(count)) <= min(block.yoko, block.tate)) {
+            numbers.valid = true;
+        } else {
+            numbers.valid = false;
+        }
+        block.nump.push(numbers);
+    }
+         
+    return;
+}
+    
+function expressed_by_subtraction(value) {
+    let result = [];
+    for (let a = 1; a <= 9; a++) {
+        const b = value + a;
+        if (1 <= b && b <= 9) {
+            result.push([a, b]);
+        }
+    }
+    return uniq_array(result);
+}
+
+function build_nump_divition(block) {
+    if (block.length != 2 || block.value >= 10) {
+        return;
+    }
+    for (const nums of expressed_by_divition(block.value)) {
+        let count = {};
+        let numbers = new Numbers();
+        for (const e of nums) {
+            count[e] = (count[e] || 0) + 1;
+            numbers.push(e);
+        }
+        if (max(...Object.keys(count)) <= 9 && max(...Object.values(count)) <= min(block.yoko, block.tate)) {
+            numbers.valid = true;
+        } else {
+            numbers.valid = false;
+        }
+        block.nump.push(numbers);
+    }
+         
+    return;
+}
+
+function expressed_by_divition(value) {
+    let result = [];
+    for (let a = 1; a <= 9; a++) {
+        const b = value * a;
+        if (1 <= b && b <= 9) {
+            result.push([a, b]);
+        }
+    }
+    return uniq_array(result);
+}
+
+//----------------------------------------
 /*
-
-　┌┐　13122
-　││
-┌┘└┐
-│┌┐│
-└┘└┘
-
-13122 = 9 * 9 * 9 * 9 * 2;
-
-9 * 9 * 9 * 9 * 2 * 1 * 1; <-- x
-9 * 9 * 9 * 3 * 3 * 2 * 1;
-9 * 9 * 3 * 3 * 3 * 3 * 2; <-- x
-
-
-　　┌┐405 (47,56,57,58,67)
-┌─┘│
-│┌─┘
-└┘
-
-405 = 9 * 9 * 5
-
-9 * 9 * 5 * 1 * 1
-9 * 5 * 3 * 3 * 1
-5 * 3 * 3 * 3 * 3 <-- x
-
-
-　　┌┐16464 (50,59,60,61,71)
-┌─┘│
-└┐┌┘
-　└┘
-16464 = 8 * 7 * 7 * 7 * 6
-
-8 * 7 * 7 * 7 * 6
-
-
-┌┐　162 (70,81,92,93)
-││
-││
-│└┐
-└─┘
-
-162 = 9 * 9 * 2;
-
-9 * 9 * 2 * 1
-9 * 3 * 3 * 2
-
-9 * 6 * 3 * 1;
-
-
-9 = 3 * 3
-8 = 2 * 2 * 2
-6 = 3 * 2
-4 = 2 * 2
-
-162 = 3 * 3 * 3 * 3 * 2 (4)
-
-3 * 3 * 3 * 3 * 2 <--- x
-9 * 3 * 3 * 2
-9 * 9 * 2 * 1
-9 * 6 * 3 * 1
-
-
-405 = 9 * 9 * 5 (5)
-9 * 9 (4)
-9 * 9 * 1 * 1
-9 * 3 * 3 * 1
-3 * 3 * 3 * 3
-
-
+ * [], nums = 6 * 3 * 3, blocks = [19,20,30]
  */
+function build_nump_pattern(field, nums, blocks) {
+    let tmp_field = field.slice();
+    const pos_n = xyn.getXY(blocks[tmp_field.length - 1]);
+    const n = tmp_field.pop();
+    for (let i = 0; i < tmp_field.length; i++) {
+        if (tmp_field[i] === n) {
+            const pos_e = xyn.getXY(blocks[i]);
+            if (pos_n[0] === pos_e[0] || pos_n[1] === pos_e[1]) {
+                return [];
+            }
+        }
+    }
+
+    if (nums.length === 0) {
+        let ans = {};
+        for (let i = 0; i < field.length; i++) {
+            ans[blocks[i]] = field[i];
+        }
+        return [ans];
+    }
+
+    let result = [];
+    append_field : for (const n of new Set(nums)) {
+        field.push(n);
+        nums.splice(nums.indexOf(n), 1);
+        result = [...result, ...build_nump_pattern(field, nums, blocks)];
+        nums.push(field.pop());
+
+    }
+
+    return result;
+}
