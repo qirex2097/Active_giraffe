@@ -22,8 +22,8 @@ class SQBoard {
         this.current = this.getNum(this.x, this.y);
         return this.current;
     }
-    isValidPos() {
-        return this.isValidNum(this.current);
+    isValidPos(num = this.current) {
+        return !(num <= this.yoko - 1 || num % this.yoko === 0 || num % this.yoko === 10 || num >= this.yoko * (this.tate - 1)); 
     }
     draw(callback) {
         for (let y = 1; y < this.tate - 1; y++) {
@@ -38,6 +38,18 @@ class SQBoard {
 
     setValue(num, value) { this.values[num] = value; }
     getValue(num) { return this.values[num]; }
+
+    setValues(nums) {
+        for (const key in nums) {
+            this.setValue(key, nums[key]);
+        }
+    }
+    clearValues(nums) {
+        for (const key in nums) {
+            this.setValue(key, 0);
+        }
+    }
+
     getValuesX = (x) => { 
         return this.values.filter((e, i) => x === (i % this.yoko)
                                   && 1 <= Math.floor(i / this.yoko) 
@@ -46,9 +58,20 @@ class SQBoard {
         return this.values.filter((e, i) => y === Math.floor(i / this.yoko)
                                   && 1 <= Math.floor(i % this.yoko) 
                                   && Math.floor(i % this.yoko) <= this.yoko - 2); }
-    
-    isValidNum = (num) => { 
-        return !(num <= this.yoko - 1 || num % this.yoko === 0 || num % this.yoko === 10 || num >= this.yoko * (this.tate - 1)); 
+
+    isValidNum = (num) => {
+        const value = this.getValue(num);
+        const pos = this.getXY(num);
+        const values_x = this.getValuesX(pos[0]);
+        const values_y = this.getValuesY(pos[1]);
+        if (1 <= value && value <= 9) {
+            if (values_x.filter(e => e === value).length === 1 &&
+                values_y.filter(e => e === value).length === 1) {
+                return true;
+            } else {
+                return false;
+            }
+        }
     }
 }
 
@@ -58,16 +81,75 @@ class Block extends Array {
         this.value = NaN;
         this.yoko = NaN;
         this.tate = NaN;
-        this.nump = [];
-        this.nump_no = NaN;
+        this.combination_list = [];
+        this.combination_no = NaN;
     }
-    getNump() {
-        return this.nump[this.nump_no];
+    setCombination(no) {
+        if (0 <= no && no < this.combination_list.length) {
+            this.combination_no = no;
+            return this.combination_list[this.combination_no];
+        } else {
+            this.combination_no = NaN;
+            return [];
+        }
+    }
+    getCombination() {
+        return this.combination_list[this.combination_no];
+    }
+    buildCombinationList() {
+        if (this.combination_list.length > 0) {
+            return;
+        }
+        build_nump_multiplication(this);
+        build_nump_addition(this);
+        build_nump_subtraction(this);
+        build_nump_divition(this);
     }
 
     static get [Symbol.species]() {
         return Array;
     }
+}
+
+class Combination extends Array {
+    constructor (...items) {
+        super(...items);
+        this.valid = true;
+        this.permutation_list = [];
+        this.permutation_no = NaN;
+    }
+
+    setPattern(no) {
+        this.permutation_no = no;
+        return this.getPattern();
+    }
+    getPattern() {
+        if (this.permutation_no >= 0) {
+            return this.permutation_list[this.permutation_no];
+        } else {
+            return this.getDummyPattern();
+        }
+    }
+    getDummyPattern() {
+        let dummy_pattern = {};
+        if (this.permutation_list.length > 0) {
+            for (const key of Object.keys(this.permutation_list[0])) {
+                dummy_pattern[key] = 0;
+            }
+        }
+        return dummy_pattern;
+    }
+    buildPermutationList(blocks) {
+        if (this.permutation_list.length > 0) {
+            return;
+        }
+        this.permutation_list = build_permutation_list([], this.slice(), blocks);
+    }
+
+    static get [Symbol.species]() {
+        return Array;
+    }
+
 }
 
 let xyn = new SQBoard(YOKO, TATE, SIZE);
@@ -218,7 +300,7 @@ function tm_stage00(event) {
 
 function ts_stage00(event) {
     const touched_num = xyn.refresh(mouseX, mouseY);
-    if (!xyn.isValidNum(touched_num)) {
+    if (!xyn.isValidPos(touched_num)) {
         return;
     }
     current_block = new Block();
@@ -269,38 +351,12 @@ function te_stage00(event) {
 }
 
 function button_stage00() {
-    [draw_func, clicked_func, touch_started, touch_moved, touch_ended, button_func] = initialize_stage01();
+    //[draw_func, clicked_func, touch_started, touch_moved, touch_ended, button_func] = initialize_stage01();
+    [draw_func, clicked_func, touch_started, touch_moved, touch_ended, button_func] = initialize_stage02();
 }
 
 //----------------------------------------
 
-class Numbers extends Array {
-    constructor (...items) {
-        super(...items);
-        this.valid = true;
-        this.pattern = [];
-        this.pattern_no = NaN;
-    }
-
-    getPattern() {
-        if (this.pattern_no >= 0) {
-            return this.pattern[this.pattern_no];
-        } else {
-            if (this.pattern.length > 0) {
-                var dummy_pattern = {};
-                for (const key of Object.keys(this.pattern[0])) {
-                    dummy_pattern[key] = 0;
-                }
-                return dummy_pattern;
-            }
-        }
-    }
-
-    static get [Symbol.species]() {
-        return Array;
-    }
-
-}
 
 let selected_block = null;
 let sel_button = null;
@@ -356,12 +412,12 @@ function draw_stage01() {
                 textAlign(LEFT, TOP);
                 text(block.value, canvas_x, canvas_y);
             }
-            if (block.nump_no >= 0) {
-                const nump = block.getNump();
-                if (nump.pattern_no >= 0) {
+            if (block.combination_no >= 0) {
+                const combi = block.getCombination();
+                if (combi.permutation_no >= 0) {
                     fill(255);
                     textAlign(CENTER, CENTER);
-                    text(nump.getPattern()[num], canvas_x + size / 2, canvas_y + size / 2);
+                    text(combi.getPattern()[num], canvas_x + size / 2, canvas_y + size / 2);
                 }
             }
             pop();
@@ -380,12 +436,10 @@ function draw_stage01() {
                     fill('red');
                 }
                 rect(origin_x + (x - 1) * 30, origin_y + (y - 1) * 30, 30);
+
                 const value = xyn.getValue(num);
-                const values_x = xyn.getValuesX(x);
-                const values_y = xyn.getValuesY(y);
                 if (1 <= value && value <= 9) {
-                    if (values_x.filter(e => e === value).length === 1 &&
-                        values_y.filter(e => e === value).length === 1) {
+                    if (xyn.isValidNum(num)) {
                         fill(255);
                         stroke(255);
                     } else {
@@ -403,7 +457,7 @@ function draw_stage01() {
 
 function clicked_stage01() {
     const touched_num = xyn.refresh(mouseX, mouseY);
-    if (!xyn.isValidNum(touched_num)) {
+    if (!xyn.isValidPos(touched_num)) {
         return;
     }
     if (sel_button2) {
@@ -423,11 +477,8 @@ function clicked_stage01() {
         } else {
             selected_block = block;
 
-            if (selected_block.nump.length === 0) {
-                build_nump_multiplication(selected_block);
-                build_nump_addition(selected_block);
-                build_nump_subtraction(selected_block);
-                build_nump_divition(selected_block);
+            if (selected_block.combination_list.length === 0) {
+                selected_block.buildCombinationList();
             }
 
             if (sel_button) {
@@ -437,13 +488,13 @@ function clicked_stage01() {
             sel_button = createSelect();
             sel_button.position(SIZE * YOKO, 24);
             sel_button.option('-', -1);
-            selected_block.nump.forEach((numbers, index) => {
-                if (numbers.valid) {
-                    sel_button.option(numbers.slice().toString(), index);
+            selected_block.combination_list.forEach((combi, index) => {
+                if (combi.valid) {
+                    sel_button.option(combi.slice().toString(), index);
                 }
             });
-            if (selected_block.nump_no >= 0) {
-                sel_button.selected(selected_block.nump_no);
+            if (selected_block.combination_no >= 0) {
+                sel_button.selected(selected_block.combination_no);
                 select_changed();
             }
             sel_button.changed(select_changed);
@@ -474,32 +525,28 @@ function select_changed() {
         sel_button2.remove();
         sel_button2 = null;
 
-        let nump = selected_block.getNump();
-        const num = nump.getPattern();
-        for (const key in num) {
-            xyn.setValue(key, 0);
-        }
+        let combi = selected_block.getCombination();
+        xyn.setValues(combi.getDummyPattern());
     }
     const idx = sel_button.value();
-    selected_block.nump_no = idx;
-    if (idx >= 0) {
-        let nump = selected_block.getNump();
-        if (nump.pattern.length === 0) {
-            nump.pattern = build_nump_pattern([], selected_block.nump[idx].slice(), selected_block.slice());
-        }
-        if (nump.pattern.length > 0) {
+    let combi = selected_block.setCombination(idx);
+
+    if (combi.length > 0) {
+        combi.buildPermutationList(selected_block.slice());
+
+        if (combi.permutation_list.length > 0) {
             sel_button2 = createSelect();
             sel_button2.position(SIZE * YOKO, 48);
             sel_button2.option('-', -1);
-            nump.pattern.forEach((numbers, index) => {
+            combi.permutation_list.forEach((value, index) => {
                 let values = '';
-                for (const key of Object.keys(numbers)) {
-                    values += numbers[key] + ',';
+                for (const key of Object.keys(value)) {
+                    values += value[key] + ',';
                 }
                 sel_button2.option(values, index);
             });
-            if (nump.pattern_no >= 0) {
-                sel_button2.selected(nump.pattern_no);
+            if (combi.permutation_no >= 0) {
+                sel_button2.selected(combi.permutation_no);
                 select_changed_2();
             }
             sel_button2.changed(select_changed_2);
@@ -509,13 +556,10 @@ function select_changed() {
 
 function select_changed_2() {
     const idx = sel_button2.value();
-    let nump = selected_block.getNump();
-    nump.pattern_no = idx;
+    let combi = selected_block.getCombination();
 
-    const num = nump.getPattern();
-    for (const key in num) {
-        xyn.setValue(key, num[key]);
-    }
+    xyn.setValues(combi.setPattern(idx));
+
     return;
 }
 
@@ -524,23 +568,51 @@ function button_stage01() {
     [draw_func, clicked_func, touch_started, touch_moved, touch_ended, button_func] = initialize_stage00();
 }
 //----------------------------------------
+function build_nump_multiplication(block) {
+    let pf = prime_factorization(block.value);
+    build_nump(block, expressed_by_multiplication(pf, block.length));
+}
+
 function build_nump_addition(block) {
-    for (const nums of expressed_by_addition(block.value, block.length, [])) {
+    build_nump(block, expressed_by_addition(block.value, block.length, []));
+}
+
+function build_nump_subtraction(block) {
+    if (block.length != 2 || block.value >= 9) {
+        return;
+    }
+    build_nump(block, expressed_by_subtraction(block.value));
+}
+
+function build_nump_divition(block) {
+    if (block.length != 2 || block.value >= 10) {
+        return;
+    }
+    build_nump(block, expressed_by_divition(block.value));
+}
+
+function build_nump(block, combination_of_numbers) {
+    for (const nums of combination_of_numbers) {
         let count = {};
-        let numbers = new Numbers();
+        let combi = new Combination();
         for (const e of nums) {
             count[e] = (count[e] || 0) + 1;
-            numbers.push(e);
+            combi.push(e);
         }
         if (max(...Object.keys(count)) <= 9 &&
             max(...Object.values(count)) <= min(block.yoko, block.tate)) {
-            numbers.valid = true;
+            combi.valid = true;
         } else {
-            numbers.valid = false;
+            combi.valid = false;
         }
-        block.nump.push(numbers);
+        //
+        if (combi.valid) {
+            block.combination_list.push(combi);
+        }
     }
 }
+
+
 
 function expressed_by_addition(value, num, field) {
     let result = [];
@@ -560,25 +632,6 @@ function expressed_by_addition(value, num, field) {
     return uniq_array(result);
 }
 
-function build_nump_multiplication(block) {
-    let pf = prime_factorization(block.value);
-    for (const nums of expressed_by_multiplication(pf, block.length)) {
-        let count = {};
-        let numbers = new Numbers();
-        for (const e of nums) {
-            count[e] = (count[e] || 0) + 1;
-            numbers.push(e);
-        }
-        if (max(...Object.keys(count)) <= 9 &&
-            max(...Object.values(count)) <= min(block.yoko, block.tate)) {
-            numbers.valid = true;
-        } else {
-            numbers.valid = false;
-        }
-        block.nump.push(numbers);
-    }
-//    block.nump_no = NaN;
-}
 
 function prime_factorization(value) {
     if (value === 0) {
@@ -670,29 +723,6 @@ function uniq_array(array) {
     ))
 }
 
-//----------------------------------------
-
-function build_nump_subtraction(block) {
-    if (block.length != 2 || block.value >= 9) {
-        return;
-    }
-    for (const nums of expressed_by_subtraction(block.value)) {
-        let count = {};
-        let numbers = new Numbers();
-        for (const e of nums) {
-            count[e] = (count[e] || 0) + 1;
-            numbers.push(e);
-        }
-        if (max(...Object.keys(count)) <= 9 && max(...Object.values(count)) <= min(block.yoko, block.tate)) {
-            numbers.valid = true;
-        } else {
-            numbers.valid = false;
-        }
-        block.nump.push(numbers);
-    }
-         
-    return;
-}
     
 function expressed_by_subtraction(value) {
     let result = [];
@@ -705,27 +735,6 @@ function expressed_by_subtraction(value) {
     return uniq_array(result);
 }
 
-function build_nump_divition(block) {
-    if (block.length != 2 || block.value >= 10) {
-        return;
-    }
-    for (const nums of expressed_by_divition(block.value)) {
-        let count = {};
-        let numbers = new Numbers();
-        for (const e of nums) {
-            count[e] = (count[e] || 0) + 1;
-            numbers.push(e);
-        }
-        if (max(...Object.keys(count)) <= 9 && max(...Object.values(count)) <= min(block.yoko, block.tate)) {
-            numbers.valid = true;
-        } else {
-            numbers.valid = false;
-        }
-        block.nump.push(numbers);
-    }
-         
-    return;
-}
 
 function expressed_by_divition(value) {
     let result = [];
@@ -742,7 +751,7 @@ function expressed_by_divition(value) {
 /*
  * [], nums = 6 * 3 * 3, blocks = [19,20,30]
  */
-function build_nump_pattern(field, nums, blocks) {
+function build_permutation_list(field, nums, blocks) {
     let tmp_field = field.slice();
     const pos_n = xyn.getXY(blocks[tmp_field.length - 1]);
     const n = tmp_field.pop();
@@ -764,13 +773,154 @@ function build_nump_pattern(field, nums, blocks) {
     }
 
     let result = [];
-    append_field : for (const n of new Set(nums)) {
+    for (const n of new Set(nums)) {
         field.push(n);
         nums.splice(nums.indexOf(n), 1);
-        result = [...result, ...build_nump_pattern(field, nums, blocks)];
+        result = [...result, ...build_permutation_list(field, nums, blocks)];
         nums.push(field.pop());
-
     }
 
     return result;
+}
+
+//--------------------------------------------------
+//--------------------------------------------------
+let processing_block = null;
+let processing_block_no = 0;
+
+function initialize_stage02() {
+    processing_block = null;
+    return [draw_stage02, null, null, null, null, button_stage02];
+}
+
+function isValidPattern(pattern) {
+    if (Object.keys(pattern).length === 0) {
+        return false;
+    }
+    for (const key of Object.keys(pattern)) {
+        if (!(xyn.isValidNum(key))) {
+            return false;
+        }
+    }
+    return true;
+}
+
+function draw_stage02() {
+    background(90);
+
+    if (processing_block) {
+        if (frameCount % 1 === 0) {
+            let combi = processing_block.getCombination();
+            let pattern = combi.getPattern();
+            if (isValidPattern(pattern)) {
+                if (processing_block_no + 1 < block_list.length) {
+                    processing_block_no++;
+                    processing_block = block_list[processing_block_no];
+                    
+                    processing_block.buildCombinationList();
+                    processing_block.setCombination(0);
+                    combi = processing_block.getCombination();
+                    combi.buildPermutationList(processing_block.slice());
+                    xyn.setValues(combi.setPattern(0));
+                }
+            } else {
+                xyn.clearValues(pattern);
+                if (combi.permutation_no + 1 < combi.permutation_list.length) {
+                    xyn.setValues(combi.setPattern(combi.permutation_no + 1));
+                } else if (processing_block.combination_no + 1 < processing_block.combination_list.length) {
+                    combi = processing_block.setCombination(processing_block.combination_no + 1);
+                    combi.buildPermutationList(processing_block.slice());
+                    if (combi.permutation_list.length > 0) {
+                        xyn.setValues(combi.setPattern(0));
+                    }
+                } else {
+                    while (processing_block_no > 0) {
+                        xyn.clearValues(processing_block.getCombination().getPattern());
+                        processing_block_no--;
+                        processing_block = block_list[processing_block_no];
+                        processing_block.buildCombinationList();
+                        combi = processing_block.getCombination();
+                        combi.buildPermutationList(processing_block.slice());
+                        if (combi.permutation_no + 1 < combi.permutation_list.length) {
+                            xyn.setValues(combi.setPattern(combi.permutation_no + 1));
+                            break;
+                        } else if (processing_block.combination_no + 1 < processing_block.combination_list.length) {
+                            combi = processing_block.setCombination(processing_block.combination_no + 1);
+                            combi.buildPermutationList(processing_block.slice());
+                            if (combi.permutation_list.length > 0) {
+                                xyn.setValues(combi.setPattern(0));
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    } else if (block_list.length > 0) {
+        processing_block_no = 0;
+        processing_block = block_list[processing_block_no];
+        processing_block.buildCombinationList();
+
+        let combi = processing_block.setCombination(0);
+        combi.buildPermutationList(processing_block.slice());
+        if (combi.permutation_list.length > 0) {
+            xyn.setValues(combi.setPattern(0));
+        } else {
+            xyn.setValues(combi.setPattern(NaN));
+        }
+    }
+
+    xyn.draw((canvas_x, canvas_y, size, num) => {
+        let block = null;
+        for (const tmp_block of block_list) {
+            if (tmp_block.includes(num)) {
+                block = tmp_block;
+                break;
+            }
+        }
+
+        noStroke();
+        noFill();
+        if (processing_block === block) {
+            fill('red');
+        } else if (block) {
+            fill('purple');
+        }
+        rect(canvas_x, canvas_y, size);
+
+        push();
+        if (block) {
+            stroke('gray');
+            strokeWeight(1);
+            if (!block.includes(num - xyn.yoko)) {
+                line(canvas_x, canvas_y, canvas_x + size, canvas_y);
+            }
+            if (!block.includes(num + 1)) {
+                line(canvas_x + size, canvas_y, canvas_x + size, canvas_y + size);
+            }
+            if (!block.includes(num + xyn.yoko)) {
+                line(canvas_x + size, canvas_y + size, canvas_x, canvas_y + size);
+            }
+            if (!block.includes(num - 1)) {
+                line(canvas_x, canvas_y + size, canvas_x, canvas_y);
+            }
+
+            if (num === Math.min.apply(null, block)) {
+                fill(255);
+                textAlign(LEFT, TOP);
+                text(block.value, canvas_x, canvas_y);
+            }
+        }
+        const moji = xyn.getValue(num);
+        if (1 <= moji && moji <= 9) {
+            fill(255);
+            textAlign(CENTER, CENTER);
+            text(moji, canvas_x + size / 2, canvas_y + size / 2);
+        }
+        pop();
+    });
+}
+
+function button_stage02() {
+    [draw_func, clicked_func, touch_started, touch_moved, touch_ended, button_func] = initialize_stage00();
 }
