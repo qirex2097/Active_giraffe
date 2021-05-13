@@ -789,6 +789,12 @@ let processing_block = null;
 let processing_block_no = 0;
 
 function initialize_stage02() {
+    for (let y = 1; y <= 9; y++) {
+        for (let x = 1; x <= 9; x++) {
+            const num = xyn.getNum(x, y);
+            xyn.setValue(num, 0);
+        }
+    }
     processing_block = null;
     return [draw_stage02, null, null, null, null, button_stage02];
 }
@@ -805,26 +811,46 @@ function isValidPattern(pattern) {
     return true;
 }
 
+function prevBlock() {
+    while (processing_block_no > 0) {
+        xyn.clearValues(processing_block.getCombination().getPattern());
+
+        processing_block_no--;
+        processing_block = block_list[processing_block_no];
+        processing_block.buildCombinationList();
+        let combi = processing_block.getCombination();
+        combi.buildPermutationList(processing_block.slice());
+        if (combi.permutation_no + 1 < combi.permutation_list.length) {
+            xyn.setValues(combi.setPattern(combi.permutation_no + 1));
+            return;
+        } else if (processing_block.combination_no + 1 < processing_block.combination_list.length) {
+            combi = processing_block.setCombination(processing_block.combination_no + 1);
+            combi.buildPermutationList(processing_block.slice());
+            if (combi.permutation_list.length > 0) {
+                xyn.setValues(combi.setPattern(0));
+            }
+            return;
+        }
+    }
+
+    return;
+}
+
 function draw_stage02() {
     background(90);
 
     if (processing_block) {
-        if (frameCount % 1 === 0) {
+        if (processing_block_no + 1 < block_list.length) {
+            processing_block_no++;
+            processing_block = block_list[processing_block_no];
+
+            processing_block.buildCombinationList();
+            processing_block.setCombination(0);
+
             let combi = processing_block.getCombination();
-            let pattern = combi.getPattern();
-            if (isValidPattern(pattern)) {
-                if (processing_block_no + 1 < block_list.length) {
-                    processing_block_no++;
-                    processing_block = block_list[processing_block_no];
-                    
-                    processing_block.buildCombinationList();
-                    processing_block.setCombination(0);
-                    combi = processing_block.getCombination();
-                    combi.buildPermutationList(processing_block.slice());
-                    xyn.setValues(combi.setPattern(0));
-                }
-            } else {
-                xyn.clearValues(pattern);
+            combi.buildPermutationList(processing_block.slice());
+            xyn.setValues(combi.setPattern(0));
+            while (!isValidPattern(combi.getPattern())) {
                 if (combi.permutation_no + 1 < combi.permutation_list.length) {
                     xyn.setValues(combi.setPattern(combi.permutation_no + 1));
                 } else if (processing_block.combination_no + 1 < processing_block.combination_list.length) {
@@ -834,25 +860,8 @@ function draw_stage02() {
                         xyn.setValues(combi.setPattern(0));
                     }
                 } else {
-                    while (processing_block_no > 0) {
-                        xyn.clearValues(processing_block.getCombination().getPattern());
-                        processing_block_no--;
-                        processing_block = block_list[processing_block_no];
-                        processing_block.buildCombinationList();
-                        combi = processing_block.getCombination();
-                        combi.buildPermutationList(processing_block.slice());
-                        if (combi.permutation_no + 1 < combi.permutation_list.length) {
-                            xyn.setValues(combi.setPattern(combi.permutation_no + 1));
-                            break;
-                        } else if (processing_block.combination_no + 1 < processing_block.combination_list.length) {
-                            combi = processing_block.setCombination(processing_block.combination_no + 1);
-                            combi.buildPermutationList(processing_block.slice());
-                            if (combi.permutation_list.length > 0) {
-                                xyn.setValues(combi.setPattern(0));
-                            }
-                            break;
-                        }
-                    }
+                    prevBlock();
+                    combi = processing_block.getCombination();
                 }
             }
         }
@@ -865,8 +874,6 @@ function draw_stage02() {
         combi.buildPermutationList(processing_block.slice());
         if (combi.permutation_list.length > 0) {
             xyn.setValues(combi.setPattern(0));
-        } else {
-            xyn.setValues(combi.setPattern(NaN));
         }
     }
 
