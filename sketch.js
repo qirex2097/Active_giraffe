@@ -787,6 +787,8 @@ function build_permutation_list(field, nums, blocks) {
 //--------------------------------------------------
 let processing_block = null;
 let processing_block_no = 0;
+let block_table0 = {};
+let block_table1 = {};
 
 function initialize_stage02() {
     for (let y = 1; y <= 9; y++) {
@@ -795,6 +797,8 @@ function initialize_stage02() {
             xyn.setValue(num, 0);
         }
     }
+    block_table0 = {};
+    block_table1 = {};
     processing_block = null;
     return [draw_stage02, null, null, null, null, button_stage02];
 }
@@ -815,8 +819,13 @@ function prevBlock() {
     while (processing_block_no > 0) {
         xyn.clearValues(processing_block.getCombination().getPattern());
 
+        block_table1[processing_block] = frameCount;
+
         processing_block_no--;
         processing_block = block_list[processing_block_no];
+
+        block_table0[processing_block] = frameCount;
+
         processing_block.buildCombinationList();
         let combi = processing_block.getCombination();
         combi.buildPermutationList(processing_block.slice());
@@ -843,6 +852,7 @@ function draw_stage02() {
         if (processing_block_no + 1 < block_list.length) {
             processing_block_no++;
             processing_block = block_list[processing_block_no];
+            block_table0[processing_block] = frameCount;
 
             processing_block.buildCombinationList();
             processing_block.setCombination(0);
@@ -868,6 +878,8 @@ function draw_stage02() {
     } else if (block_list.length > 0) {
         processing_block_no = 0;
         processing_block = block_list[processing_block_no];
+        block_table0[processing_block] = frameCount;
+
         processing_block.buildCombinationList();
 
         let combi = processing_block.setCombination(0);
@@ -889,9 +901,21 @@ function draw_stage02() {
         noStroke();
         noFill();
         if (processing_block === block) {
-            fill('red');
+            fill(color(100));	//fill('pink');
         } else if (block) {
-            fill('purple');
+            const frame0 = block_table0[block];
+            const frame1 = block_table1[block];
+            if (0 < frame0) {
+                if (0 < frame1 && frame0 <= frame1) {
+                    const frame = frameCount - frame1;
+                    fill(color(Math.max(0, 100 - Math.floor(30 * log(frame / 10 + 1)))));
+                } else {
+                    const frame = frameCount - frame0;
+                    fill(color(Math.min(200, 100 + Math.floor(30 * log(frame / 10 + 1)))));
+                }
+            } else {
+                fill('black');
+            }
         }
         rect(canvas_x, canvas_y, size);
 
@@ -913,14 +937,14 @@ function draw_stage02() {
             }
 
             if (num === Math.min.apply(null, block)) {
-                fill(255);
+                fill(200);
                 textAlign(LEFT, TOP);
                 text(block.value, canvas_x, canvas_y);
             }
         }
         const moji = xyn.getValue(num);
         if (1 <= moji && moji <= 9) {
-            fill(255);
+            fill('blue');
             textAlign(CENTER, CENTER);
             text(moji, canvas_x + size / 2, canvas_y + size / 2);
         }
