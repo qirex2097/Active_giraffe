@@ -73,6 +73,20 @@ class SQBoard {
             }
         }
     }
+
+    calcYokoTate = (num_array) => {
+        let x0, y0, x1, y1;
+        [x0, y0] = this.getXY(num_array[0]);
+        [x1, y1] = [x0, y0];
+        for (const num of num_array) {
+            const pos = this.getXY(num);
+            x0 = min(pos[0], x0);
+            y0 = min(pos[1], y0);
+            x1 = max(pos[0], x1);
+            y1 = max(pos[1], y1);
+        }
+        return [this.getNum(x0, y0), x1 - x0 + 1, y1 - y0 + 1];
+    }
 }
 
 class Block extends Array {
@@ -93,8 +107,13 @@ class Block extends Array {
             return [];
         }
     }
-    getCombination() {
-        return this.combination_list[this.combination_no];
+    getCombination(no = -1) {
+        if (no < 0) {
+            return this.combination_list[this.combination_no];
+        } else if (0 <= no && no < this.combination_list.length) {
+            return this.combination_list[no];
+        }
+        return null;
     }
     buildCombinationList() {
         if (this.combination_list.length > 0) {
@@ -171,6 +190,8 @@ function setup() {
     button = createButton('click me');
     button.position(xyn.getRightEdge(), 0);
     button.mousePressed(buttonMousePressed);
+
+    load_sample_data();
 }
 
 function draw() {
@@ -209,6 +230,52 @@ function buttonMousePressed() {
     }
 }
 //----------------------------------------
+
+const sample_data = [
+    { value : 16, num : [80, 81], },
+    { value : 16, num : [82, 83], },
+    { value : 36, num : [74, 75, 86], },	
+    { value : 17, num : [67, 78, 79], },	
+    { value : 144, num : [84, 85, 96], },
+    { value : 96, num : [62, 63, 73], },
+    { value : 12, num : [97, 108], },	// down right
+    { value : 64, num : [26, 37, 48], },
+    { value : 12, num : [53, 64], },	// right 2
+    { value : 12, num : [31, 42, ], },	// right 1
+    { value : 12, num : [19, 20, ], },	// top right
+    { value : 12, num : [95, 106, 107], },	// L
+    { value : 12, num : [41, 52, 51], },	// reverse L up
+    { value : 12, num : [29, 30, ], },
+    { value : 21, num : [28, 39, 40 ], },
+    { value : 15, num : [27, 38], },
+    { value : 54, num : [16, 17, 18], },
+    { value : 12, num : [49, 50], },	// 64 yoko
+    { value : 12, num : [14, 15], },	// top
+    { value : 12, num : [12, 13, 23], },	// top left
+    { value : 5, num : [24, 25], },		// 0
+    { value : 12, num : [61, 72], },
+    { value : 72, num : [59, 60, 71], },
+    { value : 10, num : [92, 93, 103], },	// 10 down
+    { value : 12, num : [94, 104, 105], },	// reverse L down
+    { value : 1, num : [101, 102], },
+    { value : 63, num : [56, 57, 68, 69, 70], }, //20
+    { value : 12, num : [35, 36], },
+    { value : 15, num : [34, 45], },
+    { value : 25, num : [46, 47, 58], },
+    { value : 11, num : [89, 100], },
+    { value : 12, num : [90, 91], },	// down left
+];
+
+
+function load_sample_data() {
+    for (const data of sample_data) {
+        let block = new Block(...data.num);
+        block.value = data.value;
+        [block.origin, block.yoko, block.tate] = xyn.calcYokoTate(block);
+        block_list.push(block);
+    }
+}
+
 
 function initialize_stage00() {
     return [draw_stage00, null, ts_stage00, tm_stage00, te_stage00, button_stage00];
@@ -785,6 +852,7 @@ function build_permutation_list(field, nums, blocks) {
 
 //--------------------------------------------------
 //--------------------------------------------------
+let information_block = null;
 let processing_block = null;
 let processing_block_no = 0;
 let block_table0 = {};
@@ -800,7 +868,33 @@ function initialize_stage02() {
     block_table0 = {};
     block_table1 = {};
     processing_block = null;
-    return [draw_stage02, null, null, null, null, button_stage02];
+    information_block = null;
+    return [draw_stage02, clicked_stage02, null, null, null, button_stage02];
+}
+
+function clicked_stage02() {
+    const touched_num = xyn.refresh(mouseX, mouseY);
+    if (!xyn.isValidPos(touched_num)) {
+        return;
+    }
+
+    for (let i = 0; i < block_list.length; i++) {
+        const block = block_list[i];
+        const idx = block.indexOf(touched_num);
+
+        if (idx === -1) {
+            continue;
+        }
+
+        if (block === information_block) {
+            information_block = null;
+        } else {
+            information_block = block;
+            information_block.buildCombinationList();
+            return;
+        }
+    }
+    return;
 }
 
 function isValidPattern(pattern) {
@@ -950,6 +1044,19 @@ function draw_stage02() {
         }
         pop();
     });
+
+    if (information_block) {
+        const idx = block_list.indexOf(information_block);
+
+        fill(255);
+        textAlign(LEFT, TOP);
+        text(`${idx}(${information_block.value})${information_block}`, SIZE * YOKO, 30);
+        for (let i = 0; i < information_block.combination_list.length; i++) {
+            const combi = information_block.getCombination(i);
+            const moji = combi.toString();
+            text(`${moji}`, SIZE * YOKO, 30 + (i + 1) * 10);
+        }
+    }
 }
 
 function button_stage02() {
